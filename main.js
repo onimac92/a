@@ -93,7 +93,36 @@ app.get('/notifications', (req, res) => {
 	})
 });
 
-const server = app.listen(3000, async () => {
+app.get('/update', (req, res) => {
+	var version = Number(req.query.v || "");
+	if (version > 0) {
+		vdb.updateOne({_id: "current"}, {$set: {version: version}}, function(error, result) {
+			if (error) {
+				return res.sendStatus(500);
+			} else {
+				return res.sendStatus(200);
+			}
+		})
+	} else {
+		return res.sendStatus(400);
+	}
+});
+
+app.get('/notify', (req, res) => {
+	var query = req.query.q || "";
+	if (query == "1") {
+		wss.clients.forEach((client) => {
+			if (client.protocol.substr(client.protocol.length - 2) == "*2") {
+				client.send("update");
+			}
+		})
+		return res.sendStatus(200);
+	} else {
+		return res.sendStatus(400);
+	}
+});
+
+const server = app.listen(80, async () => {
 	db = await MongoClient.connect(URLDB, {useUnifiedTopology: true});
 	tl = await MongoClient.connect(TELDB, {useUnifiedTopology: true});
     udb = db.db(DBNAME).collection("users");
@@ -118,7 +147,8 @@ wss.on('connection', (ws, req) => {
 		wss.clients.forEach((client) => {
 			if (client.protocol === `${user}*${dest}`) _++;
 		})
-		if (!_) return ws.close();
+		if (!_) setTimeout(() => {return ws.close()}, 50);
+		else setTimeout(() => {return ws.send("now")}, 50);
 	}
 
 	ws.on('message', (msg) => {
